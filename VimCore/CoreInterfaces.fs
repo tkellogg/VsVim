@@ -1789,13 +1789,13 @@ and BindData<'T> = {
 
     /// Often types bindings need to compose together because we need an inner binding
     /// to succeed so we can create a projected value.  This function will allow us
-    /// to translate a BindData<'T>.Completed -> BindData<'U>.Completed
-    member x.Convert convertFunc = 
+    /// to translate a 'T -> BindData<'U>
+    member x.Convert<'T, 'U> (convertFunc : 'T -> 'U) : BindData<'U> = 
         x.Map (fun value -> convertFunc value |> BindResult.Complete)
 
-    /// Very similar to the Convert function.  This will instead map a BindData<'T>.Completed
-    /// to a BindData<'U> of any form 
-    member x.Map mapFunc = 
+    /// Very similar to the Convert function.  This will instead map a BindResult<'T>.Completed
+    /// to a BindResult<'U> of any form 
+    member x.Map<'T, 'U> (mapFunc : 'T -> BindResult<'U>) : BindData<'U> = 
 
         let rec inner bindFunction keyInput = 
             match x.BindFunction keyInput with
