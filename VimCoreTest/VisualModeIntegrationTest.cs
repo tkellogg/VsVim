@@ -10,16 +10,16 @@ using Vim.UnitTest.Mock;
 
 namespace Vim.UnitTest
 {
-    [TestFixture]
-    public sealed class VisualModeIntegrationTest : VimTestBase
+    #region Base test class
+    public abstract class VisualModeIntegrationTestBase : VimTestBase
     {
-        private IVimBuffer _vimBuffer;
-        private IVimTextBuffer _vimTextBuffer;
-        private IWpfTextView _textView;
-        private ITextBuffer _textBuffer;
-        private IRegisterMap _registerMap;
-        private IVimGlobalSettings _globalSettings;
-        private TestableSynchronizationContext _context;
+        protected IVimBuffer _vimBuffer;
+        protected IVimTextBuffer _vimTextBuffer;
+        protected IWpfTextView _textView;
+        protected ITextBuffer _textBuffer;
+        protected IRegisterMap _registerMap;
+        protected IVimGlobalSettings _globalSettings;
+        protected TestableSynchronizationContext _context;
 
         internal Register UnnamedRegister
         {
@@ -48,7 +48,7 @@ namespace Vim.UnitTest
             ((MockVimHost)_vimBuffer.Vim.VimHost).FocusedTextView = _textView;
         }
 
-        private void EnterMode(SnapshotSpan span)
+        protected void EnterMode(SnapshotSpan span)
         {
             var characterSpan = CharacterSpan.CreateForSpan(span);
             var visualSelection = VisualSelection.NewCharacter(characterSpan, Path.Forward);
@@ -58,13 +58,13 @@ namespace Vim.UnitTest
             Assert.IsTrue(_context.IsEmpty);
         }
 
-        private void EnterMode(ModeKind kind, SnapshotSpan span)
+        protected void EnterMode(ModeKind kind, SnapshotSpan span)
         {
             EnterMode(span);
             _vimBuffer.SwitchMode(kind, ModeArgument.None);
         }
 
-        private void EnterBlock(BlockSpan blockSpan)
+        protected void EnterBlock(BlockSpan blockSpan)
         {
             var visualSpan = VisualSpan.NewBlock(blockSpan);
             var visualSelection = VisualSelection.CreateForward(visualSpan);
@@ -73,6 +73,85 @@ namespace Vim.UnitTest
             _context.RunAll();
             Assert.IsTrue(_context.IsEmpty);
             _vimBuffer.SwitchMode(ModeKind.VisualBlock, ModeArgument.None);
+        }
+
+    }
+    #endregion
+
+    [TestFixture]
+    public sealed class VisualModeIntegrationTest : VisualModeIntegrationTestBase 
+    {
+
+        public sealed class WhenBlockSelecting : VisualModeIntegrationTestBase
+        {
+            private string GetTextOfLineUpToCaret(ITextSnapshotLine caretLine)
+            {
+                var lineColumn = SnapshotPointUtil.GetColumn(_textView.GetCaretVirtualPoint().Position);
+                var textOfLineUpToCaret = caretLine.GetText().Substring(0, lineColumn);
+                return textOfLineUpToCaret;
+            }
+
+            [Test]
+            public void DirectlyDownwardIntoALineIndentedWithATab_TheCaretIsInTheRightPlace()
+            {
+                Create("apples", "\tbananas", "oranges");
+                _globalSettings.ShiftWidth = 4;
+                _textView.MoveCaretTo(5);
+                var textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("apple"), "we're at where we think we're at");
+
+                _vimBuffer.ProcessNotation("<C-v>j");
+
+                textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("\tb"));
+            }
+
+            [Test]
+            public void DirectlyDownwardIntoALineIndentedWithATab_TheSelectionIsTheCorrectBlock()
+            {
+                Create("apples", "\tbananas", "oranges");
+                _globalSettings.ShiftWidth = 4;
+                _textView.MoveCaretTo(5);
+                var textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("apple"), "we're at where we think we're at");
+
+                _vimBuffer.ProcessNotation("<C-v>j");
+
+                textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("\tb"));
+            }
+
+            [Test]
+            public void DownwardAfterEndOfLine_TheCaretIsInTheRightPlace()
+            {
+                Create("very long line", "s", "another very long line");
+                _globalSettings.ShiftWidth = 4;
+                _textView.MoveCaretTo(10);
+                var textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("very long "), "we're at where we think we're at");
+
+                _vimBuffer.ProcessNotation("<C-v>jj");
+
+                textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("another ve"));
+            }
+
+            [Test]
+            public void DownwardAfterEndOfLine_TheCorrectBlockIsSelected()
+            {
+                Create("very long line", "s", "another very long line");
+                _globalSettings.ShiftWidth = 4;
+                _textView.MoveCaretTo(10);
+                var textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
+                Assert.That(textOfLineUpToCaret, Is.EqualTo("very long "), "we're at where we think we're at");
+
+                _vimBuffer.ProcessNotation("<C-v>jj");
+
+                var selectedBlock = _textView.GetSelectionBlockSpan();
+                Assert.That(selectedBlock.Width, Is.EqualTo(1));
+                Assert.That(selectedBlock.Height, Is.EqualTo(3));
+                Assert.That(selectedBlock.Column, Is.EqualTo(10));
+            }
         }
 
         /// <summary>
