@@ -104,10 +104,16 @@ type internal CommonOperations
     /// This number is kept as a count of spaces.  Tabs need to be adjusted for when applying
     /// this setting to a motion
     let mutable _maintainCaretColumnSpaces : int option = None
+    let mutable _isInLinewiseMotion : bool = false
 
     do
         _textView.Caret.PositionChanged
-        |> Observable.subscribe (fun _ -> _maintainCaretColumnSpaces <- None)
+        |> Observable.subscribe (fun x -> 
+            if _isInLinewiseMotion then
+                _isInLinewiseMotion <- false
+            else            
+                _maintainCaretColumnSpaces <- None
+        )
         |> _eventHandlers.Add
 
         _textView.Closed
@@ -315,6 +321,7 @@ type internal CommonOperations
             // to do the save after the caret move since the move will clear out the saved value
             x.MoveCaretToMotionResultCore result
             _maintainCaretColumnSpaces <- Some caretColumnSpaces
+            _isInLinewiseMotion <- true
 
         | _ -> 
             // Not maintaining caret column so just do a normal movement
