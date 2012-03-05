@@ -117,8 +117,10 @@ namespace Vim.UnitTest
 
                 _vimBuffer.ProcessNotation("<C-v>j");
 
-                textOfLineUpToCaret = GetTextOfLineUpToCaret(_textView.GetCaretLine());
-                Assert.That(textOfLineUpToCaret, Is.EqualTo("\tb"));
+                var selectedBlock = _textView.GetSelectionBlockSpan();
+                Assert.That(selectedBlock.Width, Is.EqualTo(1));
+                Assert.That(selectedBlock.Height, Is.EqualTo(2));
+                Assert.That(selectedBlock.Column, Is.EqualTo(5));
             }
 
             [Test]
